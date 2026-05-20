@@ -19,7 +19,7 @@ int main() {
     //Convert destination port number 8080 into network format
     dest.sin_port = htons(8080);
     // Convert the receiver IP address into network format
-    inet_pton(AF_INET, "192.168.178.24", &dest.sin_addr); 
+    inet_pton(AF_INET, "192.168.X.X", &dest.sin_addr); 
 
     int inputNum;
 
