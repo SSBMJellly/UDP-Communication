@@ -70,7 +70,14 @@ void loop() {
              
              Serial.print("Sent confirmation back to: ");
              Serial.println(udp.remoteIP());
+        } else {
+            // Send an error packet back so the PC doesn't time out
+            String errorMessage = "Error: Number out of range!";
+            udp.beginPacket(udp.remoteIP(), udp.remotePort());
+            udp.write((const uint8_t*)errorMessage.c_str(), errorMessage.length());
+            udp.endPacket();
         }
+        // --- END SEND CONFIRMATION PACKET ---
     }
   }
   delay(10); 
