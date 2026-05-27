@@ -1,6 +1,6 @@
 #include <Arduino.h> 
-
-int main() { // Arduino IDE will handle this, but keeping main() or putting inside setup() works. For standard Arduino execution, we place it in setup().
+    // Call main() in setup()
+int main() {
     // Target cartesian coordinates
     double x = 13.0;
     double y = 3.0;
@@ -67,9 +67,9 @@ int main() { // Arduino IDE will handle this, but keeping main() or putting insi
 }
 
 void setup() {
-    main(); // Run the logic once inside setup
+    main(); 
 }
 
 void loop() {
-    // Empty loop as required by Arduino structure
+    
 }
