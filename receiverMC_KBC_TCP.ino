@@ -96,12 +96,15 @@ void processMovement(const CommandPacket& packet, ResponsePacket& res) {
         if (nextX < LIMIT_MIN) {
             strcpy(res.statusMessage, "Limit reached: -X limit reached!");
             res.limitReached = 1;
+            // LIMIT REACHED
         } else if (nextX > LIMIT_MAX) {
             strcpy(res.statusMessage, "Limit reached: +X limit reached!");
             res.limitReached = 1;
+            // LIMIT REACHED
         } else {
             currentX = nextX;
             strcpy(res.statusMessage, packet.x > 0 ? "Moving in +X direction" : "Moving in -X direction");
+            // MOVEMENT HERE
         }
     }
     // Evaluate Y Axis
@@ -110,12 +113,15 @@ void processMovement(const CommandPacket& packet, ResponsePacket& res) {
         if (nextY < LIMIT_MIN) {
             strcpy(res.statusMessage, "Limit reached: -Y limit reached!");
             res.limitReached = 1;
+            // LIMIT REACHED
         } else if (nextY > LIMIT_MAX) {
             strcpy(res.statusMessage, "Limit reached: +Y limit reached!");
             res.limitReached = 1;
+            // LIMIT REACHED
         } else {
             currentY = nextY;
             strcpy(res.statusMessage, packet.y > 0 ? "Moving in +Y direction" : "Moving in -Y direction");
+            // MOVEMENT HERE
         }
     }
     // Evaluate Z Axis
@@ -124,12 +130,15 @@ void processMovement(const CommandPacket& packet, ResponsePacket& res) {
         if (nextZ < LIMIT_MIN) {
             strcpy(res.statusMessage, "Limit reached: -Z limit reached (Descend)!");
             res.limitReached = 1;
+            // LIMIT REACHED
         } else if (nextZ > LIMIT_MAX) {
             strcpy(res.statusMessage, "Limit reached: +Z limit reached (Ascend)!");
             res.limitReached = 1;
+            // LIMIT REACHED
         } else {
             currentZ = nextZ;
             strcpy(res.statusMessage, packet.z > 0 ? "Moving in +Z direction (Ascend)" : "Moving in -Z direction (Descend)");
+            // MOVEMENT HERE
         }
     }
 }
@@ -143,6 +152,7 @@ void processGripper(const CommandPacket& packet, ResponsePacket& res) {
         } else {
             currentGripperState = 1;
             strcpy(res.statusMessage, "Gripper action: Opening gripper...");
+            // OPEN GRIPPER
         }
     } 
     else if (packet.gripperAction == 0) { // Requesting Close
@@ -151,6 +161,7 @@ void processGripper(const CommandPacket& packet, ResponsePacket& res) {
         } else {
             currentGripperState = 0;
             strcpy(res.statusMessage, "Gripper action: Closing gripper...");
+            // CLOSE GRIPPER
         }
     }
 }
