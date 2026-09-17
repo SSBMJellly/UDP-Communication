@@ -2,22 +2,29 @@ import socket
 import time
 import struct
 
-# Network Configuration
-PORT = 8080
+# --- NETWORK CONFIGURATION ---
+HOST = '127.0.0.1'  # Local loopback for single-device Pi 5 setup
+PORT = 9000         # Matched to local sender script port
 
-# Match C++ Structure Packing Layout
-# '<i f f f i' means: Little-endian, int, float, float, float, int (Total 20 bytes)
+# --- STRUCT FORMATS (Matching C++ / Sender Packing) ---
+# CommandPacket: int32, float, float, float, int32 -> '<ifffi' (20 bytes)
 COMMAND_PACKET_FMT = '<ifffi'
 COMMAND_PACKET_SIZE = struct.calcsize(COMMAND_PACKET_FMT)
 
-# '<64s i' means: Little-endian, 64-byte char array, int (Total 68 bytes)
+# ResponsePacket: 64-byte char array, int32 -> '<64si' (68 bytes)
 RESPONSE_PACKET_FMT = '<64si'
 
-# Artificial Bounds & State Variables
+# --- STATE VARIABLES & BOUNDS ---
 currentX, currentY, currentZ = 0.0, 0.0, 0.0
 LIMIT_MIN = -5.0
 LIMIT_MAX = 5.0
 currentGripperState = -1  # -1 = Uninitialized, 0 = Closed, 1 = Open
+
+
+def pad_status_message(msg_bytes: bytes) -> bytes:
+    """Safely pads or truncates byte messages to exactly 64 bytes for struct packing."""
+    return msg_bytes[:64].ljust(64, b'\x00')
+
 
 def processMovement(packet_x, packet_y, packet_z):
     global currentX, currentY, currentZ
@@ -74,6 +81,7 @@ def processMovement(packet_x, packet_y, packet_z):
 
     return status_message, limit_reached
 
+
 def processGripper(gripper_action):
     global currentGripperState
     limit_reached = 0
@@ -96,34 +104,42 @@ def processGripper(gripper_action):
 
     return status_message, limit_reached
 
+
 def main():
-    # Set up TCP Server
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server_socket.bind(('0.0.0.0', PORT))  # Listens on all interfaces (Wi-Fi/Ethernet)
+    server_socket.bind((HOST, PORT))
     server_socket.listen(3)
 
-    print(f"Server listening on port {PORT}...")
+    print(f"Hardware Mover listening on {HOST}:{PORT}...")
 
     while True:
         client_socket, client_address = server_socket.accept()
-        print(f"Client Connected from {client_address}.")
-        
-        client_socket.setblocking(False)  # Non-blocking mode matching MSG_DONTWAIT
+        print(f"Client connected from {client_address}.")
+
+        client_socket.setblocking(False)
+        rx_buffer = bytearray()
         wasMovingLastTick = False
         lastPacketTime = time.time()
 
         while True:
             try:
-                # Attempt to read data from the non-blocking socket
-                data = client_socket.recv(COMMAND_PACKET_SIZE)
-                
-                if len(data) == COMMAND_PACKET_SIZE:
+                # Accumulate data into buffer to handle TCP fragmentation
+                data = client_socket.recv(1024)
+                if not data:
+                    print("Client disconnected gracefully.")
+                    break
+                rx_buffer.extend(data)
+
+                # Process all fully received command packets
+                while len(rx_buffer) >= COMMAND_PACKET_SIZE:
+                    packet_bytes = rx_buffer[:COMMAND_PACKET_SIZE]
+                    del rx_buffer[:COMMAND_PACKET_SIZE]
+
                     lastPacketTime = time.time()  # Refresh timeout clock
-                    
-                    # Unpack bytes into Python variables
-                    p_type, p_x, p_y, p_z, p_gripper = struct.unpack(COMMAND_PACKET_FMT, data)
-                    
+
+                    p_type, p_x, p_y, p_z, p_gripper = struct.unpack(COMMAND_PACKET_FMT, packet_bytes)
+
                     status_message = b""
                     limit_reached = 0
 
@@ -133,33 +149,32 @@ def main():
                     elif p_type == 2:  # GRIPPER
                         status_message, limit_reached = processGripper(p_gripper)
 
-                    # Pack and send the binary response back
-                    response = struct.pack(RESPONSE_PACKET_FMT, status_message, limit_reached)
+                    # Pack and send 68-byte response
+                    padded_msg = pad_status_message(status_message)
+                    response = struct.pack(RESPONSE_PACKET_FMT, padded_msg, limit_reached)
                     client_socket.sendall(response)
-                    
-                elif len(data) == 0:
-                    # Client disconnected gracefully
-                    print("Client Disconnected.")
-                    break
 
             except BlockingIOError:
-                # No data available to read right now; continue down to idle checks
-                pass
-            except ConnectionResetError:
-                print("Client Disconnected unexpectedly.")
+                pass  # No socket data available to read right now
+            except (ConnectionResetError, BrokenPipeError):
+                print("Client disconnected unexpectedly.")
                 break
 
-            # Continuous key monitoring (90ms idle timeout)
-            elapsed_time = (time.time() - lastPacketTime) * 1000  # Convert to milliseconds
-            if wasMovingLastTick and (elapsed_time > 90):
-                # Pack and send idle message
-                idle_response = struct.pack(RESPONSE_PACKET_FMT, b"Status: Idle", 0)
-                client_socket.sendall(idle_response)
+            # Continuous key monitoring (90 ms idle timeout check)
+            elapsed_time_ms = (time.time() - lastPacketTime) * 1000
+            if wasMovingLastTick and (elapsed_time_ms > 90):
+                try:
+                    idle_msg = pad_status_message(b"Status: Idle")
+                    idle_response = struct.pack(RESPONSE_PACKET_FMT, idle_msg, 0)
+                    client_socket.sendall(idle_response)
+                except (ConnectionResetError, BrokenPipeError):
+                    break
                 wasMovingLastTick = False  # Prevent spamming idle message
 
-            time.sleep(0.005)  # 5ms loop padding
+            time.sleep(0.005)  # 5 ms loop padding
 
         client_socket.close()
+
 
 if __name__ == '__main__':
     main()
